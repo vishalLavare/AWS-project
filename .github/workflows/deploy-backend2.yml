@@ -41,5 +41,7 @@ jobs:
         run: |
           aws autoscaling start-instance-refresh \
             --auto-scaling-group-name ${{ secrets.ASG_NAME || 'backend2-asg' }} \
+            --strategy Rolling \
             --preferences '{"MinHealthyPercentage": 0}' \
-            --strategy Rolling
+            --desired-configuration '{"LaunchTemplate": {"LaunchTemplateName": "${{ secrets.LAUNCH_TEMPLATE_NAME || 'backend2-launch-template' }}", "Version": "$Latest"}}'
+

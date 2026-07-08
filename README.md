@@ -28,7 +28,7 @@ This project contains two distinct microservices, **Backend 1** and **Backend 2*
 *   **`backend1/`**: The controller application.
     *   Serves the Web Dashboard.
     *   Handles status monitoring, starting, and stopping of Backend 2 via AWS ASG APIs.
-    *   **CI/CD**: Deploys via SSH to an EC2 instance.
+    *   **CI/CD**: Deploys via SSH to an EC2 instance and runs within a Docker container.
 *   **`backend2/`**: The worker node application.
     *   An on-demand service running behind an Auto Scaling Group.
     *   **CI/CD**: Packages application in a Docker container, pushes to Amazon ECR, and triggers an ASG Instance Refresh.
@@ -107,6 +107,7 @@ Both microservices are deployed from this single repository using path-based wor
 ### Backend 2 Secrets (ECR Deploy)
 *   `ECR_REPOSITORY`: The name of your ECR repository (defaults to `backend2` if not set).
 *   `ASG_NAME`: The name of your Backend 2 Auto Scaling Group (e.g. `backend2-asg`).
+*   `LAUNCH_TEMPLATE_NAME`: The name of your Backend 2 Launch Template (defaults to `backend2-launch-template` if not set).
 
 ---
 

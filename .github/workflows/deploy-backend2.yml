@@ -39,9 +39,15 @@ jobs:
 
       - name: Trigger ASG Instance Refresh
         run: |
+          ASG_NAME="${{ secrets.ASG_NAME }}"
+          ASG_NAME="${ASG_NAME:-backend2-asg}"
+          LT_NAME="${{ secrets.LAUNCH_TEMPLATE_NAME }}"
+          LT_NAME="${LT_NAME:-backend2-launch-template}"
+          
           aws autoscaling start-instance-refresh \
-            --auto-scaling-group-name ${{ secrets.ASG_NAME || 'backend2-asg' }} \
+            --auto-scaling-group-name "$ASG_NAME" \
             --strategy Rolling \
             --preferences '{"MinHealthyPercentage": 0}' \
-            --desired-configuration '{"LaunchTemplate": {"LaunchTemplateName": "${{ secrets.LAUNCH_TEMPLATE_NAME || 'backend2-launch-template' }}", "Version": "$Latest"}}'
+            --desired-configuration '{"LaunchTemplate": {"LaunchTemplateName": "'"$LT_NAME"'", "Version": "$Latest"}}'
+
 

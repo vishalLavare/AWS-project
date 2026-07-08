@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - main
-      - master
     paths:
       - 'backend1/**'
       - '.github/workflows/deploy-backend1.yml'
@@ -40,42 +39,47 @@ jobs:
           script: |
             cd ${{ secrets.DEPLOY_PATH || '/home/ubuntu/backend1' }}
             
-            # Setup virtual environment if it doesn't exist
-            if [ ! -d ".venv" ]; then
-              python3 -m venv .venv
+            # Ensure Docker is installed
+            if ! command -v docker &> /dev/null; then
+              echo "Docker not found. Installing Docker..."
+              sudo apt-get update -y
+              sudo apt-get install -y docker.io
+              sudo systemctl start docker
+              sudo systemctl enable docker
+              sudo usermod -aG docker ${{ secrets.EC2_USERNAME || 'ubuntu' }}
             fi
             
-            # Activate venv and install requirements
-            source .venv/bin/activate
-            pip install --upgrade pip
-            pip install -r requirements.txt
-            
-            # Setup systemd service for Backend 1 if it doesn't exist
-            if [ ! -f "/etc/systemd/system/backend1.service" ]; then
-              echo "Creating backend1.service..."
-              sudo bash -c 'cat > /etc/systemd/system/backend1.service <<EOF
-              [Unit]
-              Description=Backend 1 Controller FastAPI Service
-              After=network.target
-
-              [Service]
-              User=ubuntu
-              WorkingDirectory='${{ secrets.DEPLOY_PATH || '/home/ubuntu/backend1' }}'
-              ExecStart='${{ secrets.DEPLOY_PATH || '/home/ubuntu/backend1' }}'/.venv/bin/uvicorn main:app --host 0.0.0.0 --port 8000
-              Restart=always
-              Environment=AWS_DEPLOYMENT=true
-              Environment=AWS_REGION=us-east-1
-              Environment=BACKEND2_ASG_NAME=backend2-asg
-              # Environment=BACKEND2_URL=http://<backend2-alb-dns>
-
-              [Install]
-              WantedBy=multi-user.target
-              EOF'
-              
-              sudo systemctl daemon-reload
-              sudo systemctl enable backend1.service
+            # Stop and disable legacy systemd service if active/enabled
+            if systemctl is-active --quiet backend1.service; then
+              echo "Stopping legacy systemd backend1 service..."
+              sudo systemctl stop backend1.service
+            fi
+            if systemctl is-enabled --quiet backend1.service; then
+              echo "Disabling legacy systemd backend1 service..."
+              sudo systemctl disable backend1.service
             fi
             
-            # Restart backend1 service to load latest code changes
-            sudo systemctl restart backend1.service
-            sudo systemctl status backend1.service --no-pager
+            # Build the Docker image
+            echo "Building Backend 1 Docker image..."
+            sudo docker build -t backend1:latest .
+            
+            # Stop and remove existing container
+            echo "Stopping and removing existing Backend 1 container..."
+            sudo docker stop backend1 || true
+            sudo docker rm backend1 || true
+            
+            # Run the Backend 1 container
+            echo "Running Backend 1 container..."
+            sudo docker run -d \
+              --name backend1 \
+              --restart always \
+              -p 8000:8000 \
+              -e AWS_DEPLOYMENT=true \
+              -e AWS_REGION="${{ secrets.AWS_REGION || 'us-east-1' }}" \
+              -e BACKEND2_ASG_NAME="${{ secrets.ASG_NAME || 'backend2-asg' }}" \
+              -e BACKEND2_URL="${{ secrets.BACKEND2_URL || '' }}" \
+              backend1:latest
+            
+            # Print container status
+            sudo docker ps -a --filter name=backend1
+

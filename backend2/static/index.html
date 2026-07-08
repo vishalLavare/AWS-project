@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Backend 2 Dashboard</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="glass-container">
+        <header>
+            <div class="logo">
+                <span class="pulse-active"></span>
+                <h1>Backend 2 Dashboard</h1>
+            </div>
+            <p class="subtitle">Distributed microservice instance node</p>
+        </header>
+
+        <main class="dashboard">
+            <div class="card active">
+                <div class="card-header">
+                    <h2>Service Status</h2>
+                    <span class="status-badge running">Running</span>
+                </div>
+                <div class="card-body">
+                    <p class="status-text font-accent running-text">backend 2 are running</p>
+                    <p class="desc">Backend 2 was spawned successfully and is running on port 8001.</p>
+                    
+                    <div class="stats-grid">
+                        <div class="stat-item">
+                            <span class="stat-label">PID</span>
+                            <span class="stat-value" id="stat-pid">-</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">Uptime</span>
+                            <span class="stat-value" id="stat-uptime">00:00:00</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">OS Platform</span>
+                            <span class="stat-value" id="stat-platform">-</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">Memory Usage</span>
+                            <span class="stat-value" id="stat-memory">Simulating...</span>
+                        </div>
+                    </div>
+
+                    <div class="action-section">
+                        <button class="btn btn-danger" onclick="stopService()">
+                            Shutdown Node
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <footer>
+            <p>Host: <span id="host-name">127.0.0.1:8001</span></p>
+        </footer>
+    </div>
+
+    <script>
+        let startTime = Date.now();
+        
+        function updateUptime() {
+            const diff = Date.now() - startTime;
+            const secs = Math.floor(diff / 1000) % 60;
+            const mins = Math.floor(diff / (1000 * 60)) % 60;
+            const hrs = Math.floor(diff / (1000 * 60 * 60));
+            
+            const format = (num) => String(num).padStart(2, '0');
+            document.getElementById('stat-uptime').textContent = `${format(hrs)}:${format(mins)}:${format(secs)}`;
+        }
+
+        async function fetchInfo() {
+            try {
+                const response = await fetch('/api/info');
+                const data = await response.json();
+                document.getElementById('stat-pid').textContent = data.pid;
+                document.getElementById('stat-platform').textContent = data.platform;
+                
+                // Start counting uptime using the system boot time if available
+                if (data.uptime_seconds) {
+                    startTime = Date.now() - (data.uptime_seconds * 1000);
+                }
+            } catch (e) {
+                console.error(e);
+            }
+        }
+
+        function simulateMemory() {
+            const mem = (15 + Math.random() * 5).toFixed(2);
+            document.getElementById('stat-memory').textContent = `${mem} MB`;
+        }
+
+        async function stopService() {
+            if (confirm("Are you sure you want to shut down Backend 2? This will close the dashboard.")) {
+                try {
+                    await fetch('/shutdown', { method: 'POST' });
+                    document.body.innerHTML = `
+                        <div class="glass-container" style="text-align: center;">
+                            <h1>Backend 2 Stopped</h1>
+                            <p style="color: var(--text-secondary); margin-top: 10px;">The server process has been terminated.</p>
+                        </div>
+                    `;
+                } catch (e) {
+                    console.error("Failed to shutdown", e);
+                }
+            }
+        }
+
+        fetchInfo();
+        setInterval(updateUptime, 1000);
+        setInterval(simulateMemory, 3000);
+        simulateMemory();
+    </script>
+</body>
+</html>

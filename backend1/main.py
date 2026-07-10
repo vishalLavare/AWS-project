@@ -24,9 +24,12 @@ if AWS_DEPLOYMENT:
         import boto3
         as_client = boto3.client('autoscaling', region_name=AWS_REGION)
         ec2_client = boto3.client('ec2', region_name=AWS_REGION)
-        BOTO3_AVAILABLE = True
+        BOTO3_AVAILABLE = (as_client is not None) and (ec2_client is not None)
     except Exception as e:
         print(f"Failed to initialize AWS clients: {e}")
+        as_client = None
+        ec2_client = None
+        BOTO3_AVAILABLE = False
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -70,7 +73,13 @@ async def get_status():
     global backend2_process
     
     # 1. AWS ASG Mode
-    if AWS_DEPLOYMENT and BOTO3_AVAILABLE:
+    if AWS_DEPLOYMENT:
+        if not BOTO3_AVAILABLE or as_client is None or ec2_client is None:
+            return {
+                "backend1": "running",
+                "backend2": "error",
+                "message": "AWS_DEPLOYMENT is enabled, but AWS clients (boto3) are not initialized. Check server logs."
+            }
         try:
             response = as_client.describe_auto_scaling_groups(
                 AutoScalingGroupNames=[BACKEND2_ASG_NAME]
@@ -149,6 +158,10 @@ async def start_backend2():
     
     # 1. AWS ASG Mode via API Gateway
     if AWS_DEPLOYMENT:
+        if not API_GATEWAY_URL:
+            return {"status": "failed", "message": "AWS_DEPLOYMENT is enabled, but API_GATEWAY_URL is not configured."}
+        if not (API_GATEWAY_URL.startswith("http://") or API_GATEWAY_URL.startswith("https://")):
+            return {"status": "failed", "message": f"AWS_DEPLOYMENT is enabled, but API_GATEWAY_URL '{API_GATEWAY_URL}' is invalid. It must start with http:// or https://"}
         try:
             response = requests.post(API_GATEWAY_URL, timeout=300)
             return Response(
@@ -188,7 +201,9 @@ async def stop_backend2():
     global backend2_process
     
     # 1. AWS ASG Mode
-    if AWS_DEPLOYMENT and BOTO3_AVAILABLE:
+    if AWS_DEPLOYMENT:
+        if not BOTO3_AVAILABLE or as_client is None:
+            return {"status": "failed", "message": "AWS_DEPLOYMENT is enabled, but AWS clients (boto3) are not initialized."}
         try:
             as_client.update_auto_scaling_group(
                 AutoScalingGroupName=BACKEND2_ASG_NAME,

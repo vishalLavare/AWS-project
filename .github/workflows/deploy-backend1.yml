@@ -75,9 +75,12 @@ jobs:
               --restart always \
               -p 8000:8000 \
               -e AWS_DEPLOYMENT=true \
-              -e AWS_REGION="${{ secrets.AWS_REGION || 'us-east-1' }}" \
+              -e AWS_REGION="${{ secrets.AWS_REGION || 'ap-south-1' }}" \
               -e BACKEND2_ASG_NAME="${{ secrets.ASG_NAME || 'backend2-asg' }}" \
               -e BACKEND2_URL="${{ secrets.BACKEND2_URL || '' }}" \
+              -e API_GATEWAY_URL="${{ secrets.API_GATEWAY_URL || '' }}" \
+              -e AWS_ACCESS_KEY_ID="${{ secrets.AWS_ACCESS_KEY_ID || '' }}" \
+              -e AWS_SECRET_ACCESS_KEY="${{ secrets.AWS_SECRET_ACCESS_KEY || '' }}" \
               backend1:latest
             
             # Print container status

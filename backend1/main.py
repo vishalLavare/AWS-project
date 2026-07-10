@@ -10,7 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 # AWS configuration and initialization
 AWS_DEPLOYMENT = os.getenv("AWS_DEPLOYMENT", "false").lower() == "true"
-AWS_REGION = os.getenv("AWS_REGION", "us-east-1")
+AWS_REGION = os.getenv("AWS_REGION", "ap-south-1")
 BACKEND2_ASG_NAME = os.getenv("BACKEND2_ASG_NAME", "backend2-asg")
 BACKEND2_URL = os.getenv("BACKEND2_URL", "") # Optional ALB or custom Route53 DNS for Backend 2
 API_GATEWAY_URL = os.getenv("API_GATEWAY_URL", "https://abc123.execute-api.ap-south-1.amazonaws.com/start")

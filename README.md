@@ -81,7 +81,7 @@ Create an Amazon Elastic Container Registry (ECR) repository named `backend2` to
 
 ### 3. Backend 2 Auto Scaling Group
 1. Set up a **Launch Template** using an Ubuntu or Amazon Linux AMI.
-2. In the **User Data** section under **Advanced Details**, paste the contents of `backend2/deploy/user_data_docker.sh`. Make sure to replace `YOUR_ECR_REGISTRY_URL` with your actual ECR Registry URL (e.g. `<aws_account_id>.dkr.ecr.<region>.amazonaws.com`).
+2. In the **User Data** section under **Advanced Details**, paste the contents of `backend2/deploy/user_data.sh`. Make sure to replace `YOUR_ECR_REGISTRY_URL` with your actual ECR Registry URL (e.g. `<aws_account_id>.dkr.ecr.<region>.amazonaws.com`).
 3. Create an **Auto Scaling Group** named `backend2-asg` with:
    *   Minimum Capacity: `0`
    *   Maximum Capacity: `1`
@@ -96,18 +96,40 @@ Both microservices are deployed from this single repository using path-based wor
 ### Shared Secrets
 *   `AWS_ACCESS_KEY_ID`: AWS credentials access key.
 *   `AWS_SECRET_ACCESS_KEY`: AWS credentials secret key.
-*   `AWS_REGION`: AWS Region of your ASG and ECR registry (e.g. `us-east-1`).
+*   `AWS_REGION`: AWS Region of your ASG and ECR registry (defaults to `ap-south-1`).
 
 ### Backend 1 Secrets (EC2 Deploy)
 *   `EC2_HOST`: Public IP/DNS of the Backend 1 EC2 instance.
 *   `EC2_USERNAME`: SSH Username (e.g. `ubuntu`).
 *   `SSH_PRIVATE_KEY`: Private Key matching the EC2 instance key pair.
 *   `DEPLOY_PATH`: Target directory path on EC2 (e.g., `/home/ubuntu/backend1`).
+*   `API_GATEWAY_URL`: The public HTTPS URL of your AWS API Gateway trigger (e.g., `https://abc123456.execute-api.ap-south-1.amazonaws.com/start`).
 
 ### Backend 2 Secrets (ECR Deploy)
 *   `ECR_REPOSITORY`: The name of your ECR repository (defaults to `backend2` if not set).
 *   `ASG_NAME`: The name of your Backend 2 Auto Scaling Group (e.g. `backend2-asg`).
 *   `LAUNCH_TEMPLATE_NAME`: The name of your Backend 2 Launch Template (defaults to `backend2-launch-template` if not set).
+
+---
+
+## 🔧 AWS Credentials & IMDSv2 Troubleshooting
+
+When running applications inside Docker containers on AWS EC2, you may encounter:
+`AWS Error: Unable to locate credentials`
+
+This happens because the Docker container runs in a bridged network by default, which is one network hop away from the host. By default, IMDSv2 (Instance Metadata Service v2) uses a **HTTP Put Response Hop Limit** of `1`, which drops token responses before they traverse the bridge to the container.
+
+### Solutions:
+1. **Pass AWS Credentials to Container (Configured by Default):**
+   Ensure `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` are added to your GitHub repository secrets. The deployment workflow automatically forwards them as environment variables to the Docker container.
+2. **If using IAM Instance Profiles (Recommended Best Practice):**
+   * **Option A:** Modify the EC2 instance metadata options to raise the hop limit to 2:
+     ```bash
+     aws ec2 modify-instance-metadata-options \
+         --instance-id <instance-id> \
+         --http-put-response-hop-limit 2
+     ```
+   * **Option B:** Run the Docker container using host networking (`--network host`) instead of port mapping (`-p 8000:8000`), so the container resides directly in the host network namespace.
 
 ---
 

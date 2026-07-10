@@ -16,7 +16,7 @@ LAST_REQUEST_TIME = time.time()
 
 # AWS configurations for self-termination/scaling down
 AWS_DEPLOYMENT = os.getenv("AWS_DEPLOYMENT", "false").lower() == "true"
-AWS_REGION = os.getenv("AWS_REGION", "us-east-1")
+AWS_REGION = os.getenv("AWS_REGION", "ap-south-1")
 BACKEND2_ASG_NAME = os.getenv("BACKEND2_ASG_NAME", "backend2-asg")
 
 async def idle_timeout_monitor():

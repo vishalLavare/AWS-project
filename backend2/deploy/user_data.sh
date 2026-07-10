@@ -1,73 +1,62 @@
 #!/usr/bin/env bash
 # ==============================================================================
-# AWS EC2 User Data script for Backend 2
+# AWS EC2 User Data script for Backend 2 (Dockerized via ECR)
 # Configured in the AWS Launch Template for the Auto Scaling Group.
-# This script runs on boot to fetch the latest code from S3 and start the app.
+# This script runs on boot to install Docker, pull the backend image from ECR,
+# and run the Docker container.
 # ==============================================================================
 
 # Exit immediately if a command exits with a non-zero status
 set -e
 
-# Update and install system dependencies
-echo "Updating packages and installing system requirements..."
+echo "Updating packages and installing Docker / AWS CLI..."
 apt-get update -y
-apt-get install -y python3 python3-pip python3-venv unzip awscli
+apt-get install -y docker.io awscli
 
-# Configuration variables
-DEPLOY_DIR="/home/ubuntu/backend2"
-S3_BUCKET="YOUR_S3_BUCKET_NAME" # Will be updated/replaced or read dynamically
-S3_KEY="backend2.zip"
+# Start and enable Docker service
+systemctl start docker
+systemctl enable docker
 
-# Create application directory
-mkdir -p "$DEPLOY_DIR"
-cd "$DEPLOY_DIR"
+# ==============================================================================
+# CONFIGURATION VARIABLES
+# Replace these values as needed for your AWS environment.
+# Ensure the EC2 Instance Profile (IAM Role) attached to the instances has:
+# 1. ECR read permissions (AmazonEC2ContainerRegistryReadOnly)
+# 2. Auto Scaling update permission (to scale itself down to 0 when idle)
+# ==============================================================================
+AWS_REGION="ap-south-1"
+ECR_REGISTRY="142166253229.dkr.ecr.ap-south-1.amazonaws.com"
+ECR_REPOSITORY="backend2"
+IMAGE_TAG="latest"
+BACKEND2_ASG_NAME="backend2-asg"
+IDLE_TIMEOUT_SECONDS="600" # 10 minutes
 
-# Download the latest artifact from S3
-# Note: Ensure the EC2 instance has an IAM Role attached that permits S3 Read Access for the bucket.
-echo "Downloading backend2 from S3..."
-aws s3 cp "s3://$S3_BUCKET/$S3_KEY" ./backend2.zip
+FULL_IMAGE_URI="${ECR_REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG}"
 
-# Unzip and clean archive
-echo "Extracting deployment package..."
-unzip -o backend2.zip
-rm backend2.zip
+echo "Authenticating Docker with Amazon ECR..."
+# Retry logic in case network is not fully up or IAM credentials aren't ready immediately
+for i in {1..5}; do
+    aws ecr get-login-password --region "$AWS_REGION" | docker login --username AWS --password-stdin "$ECR_REGISTRY" && break || sleep 5
+done
 
-# Setup Python Virtual Environment
-echo "Setting up Python virtual environment..."
-python3 -m venv .venv
-source .venv/bin/activate
-pip install --upgrade pip
-if [ -f "requirements.txt" ]; then
-    pip install -r requirements.txt
-else
-    # Fallback default dependencies
-    pip install fastapi uvicorn[standard] requests
-fi
+echo "Pulling image from ECR: $FULL_IMAGE_URI..."
+docker pull "$FULL_IMAGE_URI"
 
-# Fix ownership
-chown -R ubuntu:ubuntu "$DEPLOY_DIR"
+echo "Running Backend 2 Container..."
+# Stop and remove any existing container with the same name to prevent conflicts
+docker stop backend2-container || true
+docker rm backend2-container || true
 
-# Create systemd service unit file for Backend 2
-echo "Configuring systemd service..."
-cat > /etc/systemd/system/backend2.service <<EOF
-[Unit]
-Description=Backend 2 Node FastAPI Service
-After=network.target
+# Run container exposing port 8001
+docker run -d \
+  --name backend2-container \
+  --restart always \
+  -p 8001:8001 \
+  -e AWS_DEPLOYMENT=true \
+  -e AWS_REGION="$AWS_REGION" \
+  -e BACKEND2_ASG_NAME="$BACKEND2_ASG_NAME" \
+  -e IDLE_TIMEOUT_SECONDS="$IDLE_TIMEOUT_SECONDS" \
+  "$FULL_IMAGE_URI"
 
-[Service]
-User=ubuntu
-WorkingDirectory=$DEPLOY_DIR
-ExecStart=$DEPLOY_DIR/.venv/bin/uvicorn main:app --host 0.0.0.0 --port 8001
-Restart=always
+echo "Backend 2 container deployment complete and running on port 8001!"
 
-[Install]
-WantedBy=multi-user.target
-EOF
-
-# Reload daemon, enable and start service
-echo "Starting Backend 2 service..."
-systemctl daemon-reload
-systemctl enable backend2.service
-systemctl restart backend2.service
-
-echo "Backend 2 deployment complete and running on port 8001!"

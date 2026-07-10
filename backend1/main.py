@@ -3,7 +3,7 @@ import sys
 import subprocess
 import requests
 from contextlib import asynccontextmanager
-from fastapi import FastAPI
+from fastapi import FastAPI, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -13,6 +13,7 @@ AWS_DEPLOYMENT = os.getenv("AWS_DEPLOYMENT", "false").lower() == "true"
 AWS_REGION = os.getenv("AWS_REGION", "us-east-1")
 BACKEND2_ASG_NAME = os.getenv("BACKEND2_ASG_NAME", "backend2-asg")
 BACKEND2_URL = os.getenv("BACKEND2_URL", "") # Optional ALB or custom Route53 DNS for Backend 2
+API_GATEWAY_URL = os.getenv("API_GATEWAY_URL", "https://abc123.execute-api.ap-south-1.amazonaws.com/start")
 
 BOTO3_AVAILABLE = False
 as_client = None
@@ -21,11 +22,11 @@ ec2_client = None
 if AWS_DEPLOYMENT:
     try:
         import boto3
-        BOTO3_AVAILABLE = True
         as_client = boto3.client('autoscaling', region_name=AWS_REGION)
         ec2_client = boto3.client('ec2', region_name=AWS_REGION)
-    except ImportError:
-        pass
+        BOTO3_AVAILABLE = True
+    except Exception as e:
+        print(f"Failed to initialize AWS clients: {e}")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -146,31 +147,17 @@ async def get_status():
 async def start_backend2():
     global backend2_process
     
-    # 1. AWS ASG Mode
-    if AWS_DEPLOYMENT and BOTO3_AVAILABLE:
+    # 1. AWS ASG Mode via API Gateway
+    if AWS_DEPLOYMENT:
         try:
-            response = as_client.describe_auto_scaling_groups(
-                AutoScalingGroupNames=[BACKEND2_ASG_NAME]
+            response = requests.post(API_GATEWAY_URL, timeout=300)
+            return Response(
+                content=response.text,
+                status_code=response.status_code,
+                media_type="application/json"
             )
-            asg_list = response.get("AutoScalingGroups", [])
-            if not asg_list:
-                return {"status": "failed", "message": f"ASG {BACKEND2_ASG_NAME} not found"}
-            
-            asg = asg_list[0]
-            desired_capacity = asg.get("DesiredCapacity", 0)
-            
-            if desired_capacity >= 1:
-                return {"status": "starting", "message": "Backend 2 is already starting/running in ASG"}
-                
-            as_client.update_auto_scaling_group(
-                AutoScalingGroupName=BACKEND2_ASG_NAME,
-                DesiredCapacity=1,
-                MinSize=0,
-                MaxSize=1
-            )
-            return {"status": "starting", "message": "Triggered ASG scale up from 0 to 1 for Backend 2"}
         except Exception as e:
-            return {"status": "failed", "message": f"Failed to scale up ASG: {str(e)}"}
+            return {"status": "failed", "message": f"Failed to call API Gateway: {str(e)}"}
             
     # 2. Local Fallback Mode
     else:

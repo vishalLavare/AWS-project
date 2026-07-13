@@ -18,17 +18,23 @@ API_GATEWAY_URL = os.getenv("API_GATEWAY_URL", "https://abc123.execute-api.ap-so
 BOTO3_AVAILABLE = False
 as_client = None
 ec2_client = None
+elbv2_client = None
 
 if AWS_DEPLOYMENT:
     try:
         import boto3
         as_client = boto3.client('autoscaling', region_name=AWS_REGION)
         ec2_client = boto3.client('ec2', region_name=AWS_REGION)
+        try:
+            elbv2_client = boto3.client('elbv2', region_name=AWS_REGION)
+        except Exception as e_elb:
+            print(f"Failed to initialize elbv2 client: {e_elb}")
         BOTO3_AVAILABLE = (as_client is not None) and (ec2_client is not None)
     except Exception as e:
         print(f"Failed to initialize AWS clients: {e}")
         as_client = None
         ec2_client = None
+        elbv2_client = None
         BOTO3_AVAILABLE = False
 
 @asynccontextmanager
@@ -112,26 +118,40 @@ async def get_status():
                         return {"backend1": "running", "backend2": "running", "backend2_url": BACKEND2_URL}
                 except requests.RequestException:
                     pass
-                return {"backend1": "running", "backend2": "starting", "backend2_url": BACKEND2_URL}
+
+            # Fallback 1: Query Target Group health via the AWS API
+            if elbv2_client is not None:
+                target_group_arns = asg.get("TargetGroupARNs", [])
+                for tg_arn in target_group_arns:
+                    try:
+                        health_resp = elbv2_client.describe_target_health(TargetGroupArn=tg_arn)
+                        for target_desc in health_resp.get("TargetHealthDescriptions", []):
+                            if target_desc.get("TargetHealth", {}).get("State") == "healthy":
+                                return {"backend1": "running", "backend2": "running", "backend2_url": BACKEND2_URL}
+                    except Exception as e_tg:
+                        print(f"Failed to check target health for {tg_arn}: {e_tg}")
             
-            # Otherwise, fetch dynamic instance IPs and check their ports directly
-            instance_ids = [inst["InstanceId"] for inst in inservice_instances]
-            ec2_response = ec2_client.describe_instances(InstanceIds=instance_ids)
-            
-            ips = []
-            for reservation in ec2_response.get("Reservations", []):
-                for instance in reservation.get("Instances", []):
-                    ip = instance.get("PrivateIpAddress") or instance.get("PublicIpAddress")
-                    if ip:
-                        ips.append(ip)
-            
-            for ip in ips:
-                try:
-                    res = requests.get(f"http://{ip}:8001/health", timeout=1.0)
-                    if res.status_code == 200 and res.json().get("status") == "running":
-                        return {"backend1": "running", "backend2": "running", "backend2_url": BACKEND2_URL}
-                except requests.RequestException:
-                    pass
+            # Fallback 2: Fetch dynamic instance IPs and check their ports directly
+            try:
+                instance_ids = [inst["InstanceId"] for inst in inservice_instances]
+                ec2_response = ec2_client.describe_instances(InstanceIds=instance_ids)
+                
+                ips = []
+                for reservation in ec2_response.get("Reservations", []):
+                    for instance in reservation.get("Instances", []):
+                        ip = instance.get("PrivateIpAddress") or instance.get("PublicIpAddress")
+                        if ip:
+                            ips.append(ip)
+                
+                for ip in ips:
+                    try:
+                        res = requests.get(f"http://{ip}:8001/health", timeout=1.0)
+                        if res.status_code == 200 and res.json().get("status") == "running":
+                            return {"backend1": "running", "backend2": "running", "backend2_url": BACKEND2_URL}
+                    except requests.RequestException:
+                        pass
+            except Exception as e_ip:
+                print(f"Failed to check individual instance IPs: {e_ip}")
             
             return {"backend1": "running", "backend2": "starting", "backend2_url": BACKEND2_URL}
             

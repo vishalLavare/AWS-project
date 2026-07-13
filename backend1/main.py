@@ -12,7 +12,7 @@ from fastapi.middleware.cors import CORSMiddleware
 AWS_DEPLOYMENT = os.getenv("AWS_DEPLOYMENT", "false").lower() == "true"
 AWS_REGION = os.getenv("AWS_REGION", "ap-south-1")
 BACKEND2_ASG_NAME = os.getenv("BACKEND2_ASG_NAME", "backend2-asg")
-BACKEND2_URL = os.getenv("BACKEND2_URL", "http://demoLB-1135950361.ap-south-1.elb.amazonaws.com") # Optional ALB or custom Route53 DNS for Backend 2
+BACKEND2_URL = os.getenv("BACKEND2_URL", "").strip() or "http://demoLB-1135950361.ap-south-1.elb.amazonaws.com" # Optional ALB or custom Route53 DNS for Backend 2
 API_GATEWAY_URL = os.getenv("API_GATEWAY_URL", "https://abc123.execute-api.ap-south-1.amazonaws.com/start")
 
 BOTO3_AVAILABLE = False
@@ -102,7 +102,7 @@ async def get_status():
             ]
             
             if not inservice_instances:
-                return {"backend1": "running", "backend2": "starting"}
+                return {"backend1": "running", "backend2": "starting", "backend2_url": BACKEND2_URL}
             
             # If a public/private ALB or custom URL is defined, check its health endpoint
             if BACKEND2_URL:
@@ -129,11 +129,11 @@ async def get_status():
                 try:
                     res = requests.get(f"http://{ip}:8001/health", timeout=1.0)
                     if res.status_code == 200 and res.json().get("status") == "running":
-                        return {"backend1": "running", "backend2": "running", "backend2_url": f"http://{ip}:8001"}
+                        return {"backend1": "running", "backend2": "running", "backend2_url": BACKEND2_URL}
                 except requests.RequestException:
                     pass
             
-            return {"backend1": "running", "backend2": "starting"}
+            return {"backend1": "running", "backend2": "starting", "backend2_url": BACKEND2_URL}
             
         except Exception as e:
             return {"backend1": "running", "backend2": "error", "message": f"AWS Error: {str(e)}"}

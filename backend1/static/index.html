@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -9,6 +10,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/static/style.css">
 </head>
+
 <body>
     <div class="glass-container">
         <header>
@@ -39,8 +41,9 @@
                     <span class="status-badge stopped" id="backend2-badge">Offline</span>
                 </div>
                 <div class="card-body">
-                    <p class="status-text" id="backend2-status-text">backend 2 start to clickthis button button Start</p>
-                    
+                    <p class="status-text" id="backend2-status-text">backend 2 start to clickthis button button Start
+                    </p>
+
                     <div class="action-section">
                         <button id="start-btn" class="btn btn-primary" onclick="startBackend2()">
                             <span class="btn-text">Start</span>
@@ -49,7 +52,8 @@
                         <button id="stop-btn" class="btn btn-danger" onclick="stopBackend2()" style="display: none;">
                             Stop
                         </button>
-                        <a id="open-ui-btn" href="http://127.0.0.1:8001" target="_blank" class="btn btn-info" style="display: none;">
+                        <a id="open-ui-btn" href="http://127.0.0.1:8001" target="_blank" rel="noopener noreferrer"
+                            class="btn btn-info" style="display: none;">
                             Open UI
                         </a>
                     </div>
@@ -76,7 +80,7 @@
             try {
                 const response = await fetch('/api/status');
                 const data = await response.json();
-                
+
                 if (data.backend2 === 'running') {
                     setBackend2Running(data.backend2_url);
                 } else if (data.backend2 === 'starting') {
@@ -95,24 +99,24 @@
         function setBackend2Running(backend2Url) {
             backend2Card.classList.remove('stopped', 'loading');
             backend2Card.classList.add('active');
-            
+
             backend2Badge.className = 'status-badge running';
             backend2Badge.style.cssText = '';
             backend2Badge.textContent = 'Active';
-            
+
             backend2StatusText.textContent = 'backend 2 are running';
             backend2StatusText.className = 'status-text font-accent running-text';
-            
+
             startBtn.style.display = 'none';
             stopBtn.style.display = 'inline-flex';
             openUiBtn.style.display = 'inline-flex';
-            
+
             if (backend2Url) {
                 openUiBtn.href = backend2Url;
             } else {
                 openUiBtn.href = 'http://127.0.0.1:8001/';
             }
-            
+
             spinner.style.display = 'none';
             btnText.style.display = 'inline';
             startBtn.disabled = false;
@@ -121,20 +125,20 @@
         function setBackend2Starting() {
             backend2Card.classList.remove('stopped', 'active');
             backend2Card.classList.add('loading');
-            
+
             backend2Badge.className = 'status-badge';
             backend2Badge.style.background = 'rgba(255, 152, 0, 0.1)';
             backend2Badge.style.color = '#ff9800';
             backend2Badge.style.border = '1px solid rgba(255, 152, 0, 0.2)';
             backend2Badge.textContent = 'Starting';
-            
+
             backend2StatusText.textContent = 'backend 2 is starting...';
             backend2StatusText.className = 'status-text';
-            
+
             startBtn.disabled = true;
             btnText.style.display = 'none';
             spinner.style.display = 'inline-block';
-            
+
             startBtn.style.display = 'inline-flex';
             stopBtn.style.display = 'none';
             openUiBtn.style.display = 'none';
@@ -143,18 +147,18 @@
         function setBackend2Stopped() {
             backend2Card.classList.remove('active', 'loading');
             backend2Card.classList.add('stopped');
-            
+
             backend2Badge.className = 'status-badge stopped';
             backend2Badge.style.cssText = '';
             backend2Badge.textContent = 'Offline';
-            
+
             backend2StatusText.textContent = 'backend 2 start to clickthis button button Start';
             backend2StatusText.className = 'status-text';
-            
+
             startBtn.style.display = 'inline-flex';
             stopBtn.style.display = 'none';
             openUiBtn.style.display = 'none';
-            
+
             spinner.style.display = 'none';
             btnText.style.display = 'inline';
             startBtn.disabled = false;
@@ -166,11 +170,11 @@
             startBtn.disabled = true;
             btnText.style.display = 'none';
             spinner.style.display = 'inline-block';
-            
+
             try {
                 const response = await fetch('/api/start', { method: 'POST' });
                 const data = await response.json();
-                
+
                 if (data.status === 'starting' || data.status === 'running') {
                     // Poll status for a few minutes until active (ASG provisioning may take 1-3 minutes)
                     let attempts = 0;
@@ -215,4 +219,5 @@
         setInterval(checkStatus, 3000);
     </script>
 </body>
+
 </html>

@@ -78,7 +78,7 @@
                 const data = await response.json();
                 
                 if (data.backend2 === 'running') {
-                    setBackend2Running();
+                    setBackend2Running(data.backend2_url);
                 } else {
                     // Only reset to stopped if we are not currently starting it
                     if (!backend2Card.classList.contains('loading')) {
@@ -90,7 +90,7 @@
             }
         }
 
-        function setBackend2Running() {
+        function setBackend2Running(backend2Url) {
             backend2Card.classList.remove('stopped', 'loading');
             backend2Card.classList.add('active');
             
@@ -103,6 +103,12 @@
             startBtn.style.display = 'none';
             stopBtn.style.display = 'inline-flex';
             openUiBtn.style.display = 'inline-flex';
+            
+            if (backend2Url) {
+                openUiBtn.href = backend2Url;
+            } else {
+                openUiBtn.href = 'http://127.0.0.1:8001/';
+            }
             
             spinner.style.display = 'none';
             btnText.style.display = 'inline';
@@ -148,7 +154,7 @@
                         const checkData = await checkRes.json();
                         if (checkData.backend2 === 'running') {
                             clearInterval(interval);
-                            setBackend2Running();
+                            setBackend2Running(checkData.backend2_url);
                         } else if (attempts > 180) {
                             clearInterval(interval);
                             setBackend2Stopped();

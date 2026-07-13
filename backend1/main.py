@@ -12,7 +12,7 @@ from fastapi.middleware.cors import CORSMiddleware
 AWS_DEPLOYMENT = os.getenv("AWS_DEPLOYMENT", "false").lower() == "true"
 AWS_REGION = os.getenv("AWS_REGION", "ap-south-1")
 BACKEND2_ASG_NAME = os.getenv("BACKEND2_ASG_NAME", "backend2-asg")
-BACKEND2_URL = os.getenv("BACKEND2_URL", "") # Optional ALB or custom Route53 DNS for Backend 2
+BACKEND2_URL = os.getenv("BACKEND2_URL", "http://demoLB-1135950361.ap-south-1.elb.amazonaws.com") # Optional ALB or custom Route53 DNS for Backend 2
 API_GATEWAY_URL = os.getenv("API_GATEWAY_URL", "https://abc123.execute-api.ap-south-1.amazonaws.com/start")
 
 BOTO3_AVAILABLE = False
@@ -109,10 +109,10 @@ async def get_status():
                 try:
                     res = requests.get(f"{BACKEND2_URL.rstrip('/')}/health", timeout=2.0)
                     if res.status_code == 200 and res.json().get("status") == "running":
-                        return {"backend1": "running", "backend2": "running"}
+                        return {"backend1": "running", "backend2": "running", "backend2_url": BACKEND2_URL}
                 except requests.RequestException:
                     pass
-                return {"backend1": "running", "backend2": "starting"}
+                return {"backend1": "running", "backend2": "starting", "backend2_url": BACKEND2_URL}
             
             # Otherwise, fetch dynamic instance IPs and check their ports directly
             instance_ids = [inst["InstanceId"] for inst in inservice_instances]
@@ -129,7 +129,7 @@ async def get_status():
                 try:
                     res = requests.get(f"http://{ip}:8001/health", timeout=1.0)
                     if res.status_code == 200 and res.json().get("status") == "running":
-                        return {"backend1": "running", "backend2": "running"}
+                        return {"backend1": "running", "backend2": "running", "backend2_url": f"http://{ip}:8001"}
                 except requests.RequestException:
                     pass
             
@@ -143,7 +143,7 @@ async def get_status():
         try:
             response = requests.get("http://127.0.0.1:8001/health", timeout=1.0)
             if response.status_code == 200 and response.json().get("status") == "running":
-                return {"backend1": "running", "backend2": "running"}
+                return {"backend1": "running", "backend2": "running", "backend2_url": "http://127.0.0.1:8001/"}
         except requests.RequestException:
             pass
 

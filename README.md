@@ -82,28 +82,7 @@ It supports two main execution modes and components:
 
 Follow these steps sequentially to configure the AWS serverless auto-start infrastructure:
 
-### Step 1: Create & Push Docker Image (Backend 2)
-Build the container image for Backend 2 and push it to Amazon Elastic Container Registry (ECR).
-
-1. Create a repository in Amazon ECR named `backend2`.
-2. Run the following commands to build, tag, and push the image:
-```bash
-# Build docker image
-docker build -t backend2 ./backend2
-
-# Tag image with ECR URI
-docker tag backend2:latest <ACCOUNT_ID>.dkr.ecr.ap-south-1.amazonaws.com/backend2:latest
-
-# Log in to ECR
-aws ecr get-login-password --region ap-south-1 | docker login --username AWS --password-stdin <ACCOUNT_ID>.dkr.ecr.ap-south-1.amazonaws.com
-
-# Push Image to registry
-docker push <ACCOUNT_ID>.dkr.ecr.ap-south-1.amazonaws.com/backend2:latest
-```
-
----
-
-### Step 2: Create IAM Roles
+### Step 1: Create IAM Roles
 
 #### 1. Backend 1 EC2 Role (FastAPI Controller)
 Attach this role to the Backend 1 EC2 instance to allow it to monitor and manually scale down the ASG:
@@ -157,61 +136,16 @@ Attach this role to the EC2 instances created by the Launch Template. It permits
 
 ---
 
-### Step 3: Create Launch Template (Backend 2)
+### Step 2: Create Launch Template (Backend 2)
 Create a Launch Template named `backend2-launch-template` with:
 - **AMI**: Ubuntu Server (Latest LTS)
 - **Instance Type**: `t2.micro`
 - **Security Group**: Open port `8001` (for app health checks/traffic) and `22` (optional SSH).
-- **IAM Instance Profile**: Attach the Backend 2 Launch Template Role created in Step 2.
+- **IAM Instance Profile**: Attach the Backend 2 Launch Template Role created in Step 1.
 - **Key Pair**: Select your preferred SSH key pair.
 - **User Data**: Paste the contents of [`backend2/deploy/user_data.sh`](AWS project/backend2/deploy/user_data.sh) in the Advanced Details:
 
-```bash
-#!/usr/bin/env bash
-set -e
-
-# Update and install Docker + AWS CLI
-apt-get update -y
-apt-get install -y docker.io awscli
-
-systemctl start docker
-systemctl enable docker
-
-# Configuration
-AWS_REGION="ap-south-1"
-ECR_REGISTRY="<YOUR_ACCOUNT_ID>.dkr.ecr.ap-south-1.amazonaws.com"
-ECR_REPOSITORY="backend2"
-IMAGE_TAG="latest"
-BACKEND2_ASG_NAME="backend2-asg"
-IDLE_TIMEOUT_SECONDS="600" # 10 Minutes
-
-FULL_IMAGE_URI="${ECR_REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG}"
-
-# Authenticate with ECR
-aws ecr get-login-password --region "$AWS_REGION" | docker login --username AWS --password-stdin "$ECR_REGISTRY"
-
-# Pull image
-docker pull "$FULL_IMAGE_URI"
-
-# Stop existing container if any
-docker stop backend2-container || true
-docker rm backend2-container || true
-
-# Run Backend 2 container
-docker run -d \
-  --restart always \
-  --name backend2-container \
-  -p 8001:8001 \
-  -e AWS_DEPLOYMENT=true \
-  -e AWS_REGION="$AWS_REGION" \
-  -e BACKEND2_ASG_NAME="$BACKEND2_ASG_NAME" \
-  -e IDLE_TIMEOUT_SECONDS="$IDLE_TIMEOUT_SECONDS" \
-  "$FULL_IMAGE_URI"
-```
-
----
-
-### Step 4: Create Target Group
+### Step 3: Create Target Group
 Create an Application Load Balancer Target Group named `backend2-tg`:
 - **Target Type**: Instances
 - **Protocol**: `HTTP`
@@ -221,7 +155,7 @@ Create an Application Load Balancer Target Group named `backend2-tg`:
 
 ---
 
-### Step 5: Create Application Load Balancer (ALB)
+### Step 4: Create Application Load Balancer (ALB)
 Create a public-facing Application Load Balancer:
 - **Listeners**: `HTTP : 80`
 - **Default Action**: Forward to Target Group `backend2-tg`
@@ -229,7 +163,7 @@ Create a public-facing Application Load Balancer:
 
 ---
 
-### Step 6: Create Auto Scaling Group (ASG)
+### Step 5: Create Auto Scaling Group (ASG)
 Create an Auto Scaling Group named `backend2-asg`:
 - **Launch Template**: Choose `backend2-launch-template`.
 - **Target Group**: Attach the Target Group `backend2-tg` under Load Balancing settings.
@@ -240,7 +174,7 @@ Create an Auto Scaling Group named `backend2-asg`:
 
 ---
 
-### Step 7: Create Lambda Function
+### Step 6: Create Lambda Function
 Create a Lambda function to orchestrate the start sequence:
 - **Runtime**: `Python 3.x`
 - **Timeout**: `300 Seconds` (Crucial: gives EC2 enough time to boot and start Docker)
@@ -271,10 +205,10 @@ Create a Lambda function to orchestrate the start sequence:
 
 ---
 
-### Step 8: Create HTTP API Gateway
+### Step 7: Create HTTP API Gateway
 Create an HTTP API Gateway to expose the start function:
 1. Create a new **HTTP API**.
-2. Create an Integration pointing to your **Lambda Function** from Step 7.
+2. Create an Integration pointing to your **Lambda Function** from Step 6.
 3. Configure the Route:
    - Method: `POST`
    - Path: `/start`
@@ -283,7 +217,7 @@ Create an HTTP API Gateway to expose the start function:
 
 ---
 
-### Step 9: Connect the Start Trigger (Client Examples)
+### Step 8: Connect the Start Trigger (Client Examples)
 
 #### Python Integration
 ```python
@@ -358,7 +292,7 @@ The repository provides automated deployment pipelines located in `.github/workf
 - `EC2_USERNAME`: SSH username (e.g., `ubuntu`).
 - `SSH_PRIVATE_KEY`: Private SSH Key matching the controller EC2.
 - `DEPLOY_PATH`: Target directory path on EC2 (e.g., `/home/ubuntu/backend1`).
-- `API_GATEWAY_URL`: HTTP API Gateway Invoke URL from Step 8.
+- `API_GATEWAY_URL`: HTTP API Gateway Invoke URL from Step 7.
 
 ### Backend 2 Deploy Secrets (ECR)
 - `ECR_REPOSITORY`: Name of ECR repository (default: `backend2`).

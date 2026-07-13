@@ -114,10 +114,18 @@ async def get_status():
             if BACKEND2_URL:
                 try:
                     res = requests.get(f"{BACKEND2_URL.rstrip('/')}/health", timeout=2.0)
-                    if res.status_code == 200 and res.json().get("status") == "running":
-                        return {"backend1": "running", "backend2": "running", "backend2_url": BACKEND2_URL}
+                    if res.status_code == 200:
+                        try:
+                            if res.json().get("status") == "running":
+                                return {"backend1": "running", "backend2": "running", "backend2_url": BACKEND2_URL}
+                        except ValueError:
+                            pass
+                    elif res.status_code in (502, 503, 504):
+                        # The load balancer is reached but not routing to targets yet (propagating status)
+                        return {"backend1": "running", "backend2": "starting", "backend2_url": BACKEND2_URL}
                 except requests.RequestException:
                     pass
+
 
             # Fallback 1: Query Target Group health via the AWS API
             if elbv2_client is not None:

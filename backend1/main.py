@@ -102,18 +102,11 @@ async def get_status():
                 return {"backend1": "running", "backend2": "stopped"}
             
             # Check for InService and Healthy instances
-            inservice_instances = [
-                inst for inst in instances 
-                if inst.get("LifecycleState") == "InService" and inst.get("HealthStatus") == "Healthy"
-            ]
-            
-            if not inservice_instances:
-                return {"backend1": "running", "backend2": "starting", "backend2_url": BACKEND2_URL}
-            
-            # If a public/private ALB or custom URL is defined, check its health endpoint
+            # 1. If a public/private ALB or custom URL is defined, check its health endpoint first
             if BACKEND2_URL:
                 try:
-                    res = requests.get(f"{BACKEND2_URL.rstrip('/')}/health", timeout=2.0)
+                    headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"}
+                    res = requests.get(f"{BACKEND2_URL.rstrip('/')}/health", headers=headers, timeout=2.0)
                     if res.status_code == 200:
                         try:
                             if res.json().get("status") == "running":
@@ -125,6 +118,16 @@ async def get_status():
                         return {"backend1": "running", "backend2": "starting", "backend2_url": BACKEND2_URL}
                 except requests.RequestException:
                     pass
+
+            # 2. Check for InService and Healthy instances in the ASG
+            inservice_instances = [
+                inst for inst in instances 
+                if inst.get("LifecycleState") == "InService" and inst.get("HealthStatus") == "Healthy"
+            ]
+            
+            if not inservice_instances:
+                return {"backend1": "running", "backend2": "starting", "backend2_url": BACKEND2_URL}
+
 
 
             # Fallback 1: Query Target Group health via the AWS API
@@ -150,10 +153,10 @@ async def get_status():
                         ip = instance.get("PrivateIpAddress") or instance.get("PublicIpAddress")
                         if ip:
                             ips.append(ip)
-                
                 for ip in ips:
                     try:
-                        res = requests.get(f"http://{ip}:8001/health", timeout=1.0)
+                        headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"}
+                        res = requests.get(f"http://{ip}:8001/health", headers=headers, timeout=1.0)
                         if res.status_code == 200 and res.json().get("status") == "running":
                             return {"backend1": "running", "backend2": "running", "backend2_url": BACKEND2_URL}
                     except requests.RequestException:

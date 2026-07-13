@@ -79,6 +79,8 @@
                 
                 if (data.backend2 === 'running') {
                     setBackend2Running(data.backend2_url);
+                } else if (data.backend2 === 'starting') {
+                    setBackend2Starting();
                 } else {
                     // Only reset to stopped if we are not currently starting it
                     if (!backend2Card.classList.contains('loading')) {
@@ -95,6 +97,7 @@
             backend2Card.classList.add('active');
             
             backend2Badge.className = 'status-badge running';
+            backend2Badge.style.cssText = '';
             backend2Badge.textContent = 'Active';
             
             backend2StatusText.textContent = 'backend 2 are running';
@@ -115,11 +118,34 @@
             startBtn.disabled = false;
         }
 
+        function setBackend2Starting() {
+            backend2Card.classList.remove('stopped', 'active');
+            backend2Card.classList.add('loading');
+            
+            backend2Badge.className = 'status-badge';
+            backend2Badge.style.background = 'rgba(255, 152, 0, 0.1)';
+            backend2Badge.style.color = '#ff9800';
+            backend2Badge.style.border = '1px solid rgba(255, 152, 0, 0.2)';
+            backend2Badge.textContent = 'Starting';
+            
+            backend2StatusText.textContent = 'backend 2 is starting...';
+            backend2StatusText.className = 'status-text';
+            
+            startBtn.disabled = true;
+            btnText.style.display = 'none';
+            spinner.style.display = 'inline-block';
+            
+            startBtn.style.display = 'inline-flex';
+            stopBtn.style.display = 'none';
+            openUiBtn.style.display = 'none';
+        }
+
         function setBackend2Stopped() {
             backend2Card.classList.remove('active', 'loading');
             backend2Card.classList.add('stopped');
             
             backend2Badge.className = 'status-badge stopped';
+            backend2Badge.style.cssText = '';
             backend2Badge.textContent = 'Offline';
             
             backend2StatusText.textContent = 'backend 2 start to clickthis button button Start';
@@ -155,6 +181,8 @@
                         if (checkData.backend2 === 'running') {
                             clearInterval(interval);
                             setBackend2Running(checkData.backend2_url);
+                        } else if (checkData.backend2 === 'starting') {
+                            setBackend2Starting();
                         } else if (attempts > 180) {
                             clearInterval(interval);
                             setBackend2Stopped();
